@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infinite Drive 3D | Clean EV</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root { --hw: rgba(255,255,255,0.92); --hd: rgba(255,255,255,0.45); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { overflow:hidden; background:#000; font-family:'SF Pro Display',-apple-system,sans-serif; user-select:none; }
+  #c { position:fixed; top:0; left:0; width:100%; height:100%; }
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; opacity:0; transition:opacity 1.2s ease; }
+  #hud.visible { opacity:1; }
+  .htop { position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; padding:24px 36px 0; }
+  .hcol { display:flex; flex-direction:column; gap:5px; }
+  .hcol.r { align-items:flex-end; }
+  .lbl { font-size:10px; letter-spacing:.22em; color:var(--hd); text-transform:uppercase; }
+  .val { font-size:14px; font-weight:500; color:var(--hw); letter-spacing:.04em; display:flex; align-items:center; gap:8px; }
+  .bb { width:38px; height:6px; background:rgba(255,255,255,.12); border-radius:3px; overflow:hidden; }
+  .bf { height:100%; background:#00e676; border-radius:3px; transition:width 1s; }
+  .hleft { position:absolute; top:50%; left:36px; transform:translateY(-50%); display:flex; flex-direction:column; gap:3px; }
+  .nkm { font-size:28px; font-weight:300; color:var(--hw); line-height:1; }
+  .nst { font-size:11px; color:var(--hd); }
+  .hright { position:absolute; top:50%; right:36px; transform:translateY(-50%); text-align:right; display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+  .mn { font-size:15px; font-weight:600; color:var(--hw); }
+  .ma { font-size:11px; color:var(--hd); }
+  .md { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#111828,#1a2540); border:1.5px solid rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; font-size:18px; margin-top:6px; }
+  .hspd { position:absolute; top:46%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+  .sn { font-size:96px; font-weight:100; color:#fff; line-height:1; letter-spacing:-4px; font-variant-numeric:tabular-nums; text-shadow:0 0 40px rgba(0,180,255,.25); }
+  .su { font-size:11px; letter-spacing:.3em; color:var(--hd); margin-top:-4px; }
+  .alert { position:absolute; top:57%; left:50%; transform:translateX(-50%); background:rgba(8,8,18,.8); backdrop-filter:blur(10px); border-radius:20px; padding:7px 22px; font-size:12px; color:var(--hw); letter-spacing:.06em; opacity:0; transition:opacity .4s; white-space:nowrap; border:1px solid rgba(255,255,255,.08); }
+  .alert.show { opacity:1; }
+  .hbot { position:absolute; bottom:30px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .odo { font-size:11px; letter-spacing:.18em; color:var(--hd); font-variant-numeric:tabular-nums; }
+  .ldots { display:flex; gap:9px; }
+  .ld { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.18); transition:all .35s; }
+  .ld.on { background:#fff; box-shadow:0 0 10px rgba(255,255,255,.7); transform:scale(1.35); }
+  .hints { display:flex; gap:18px; opacity:.32; }
+  .hint { font-size:10px; letter-spacing:.1em; color:#fff; display:flex; gap:5px; align-items:center; }
+  .k { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:3px; padding:1px 5px; font-size:9px; font-family:monospace; }
+  #splash { position:fixed; inset:0; background:#000; z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; transition:opacity 1.4s ease; }
+  #splash.out { opacity:0; pointer-events:none; }
+  .se { font-size:10px; letter-spacing:.45em; color:rgba(255,255,255,.25); text-transform:uppercase; }
+  .st { font-size:54px; font-weight:200; color:#fff; letter-spacing:.1em; text-align:center; line-height:1.1; }
+  .ss { font-size:11px; letter-spacing:.22em; color:rgba(255,255,255,.3); text-transform:uppercase; }
+  .sb { margin-top:12px; background:transparent; border:1px solid rgba(255,255,255,.22); color:rgba(255,255,255,.82); font-size:11px; letter-spacing:.32em; text-transform:uppercase; padding:14px 42px; border-radius:40px; cursor:pointer; pointer-events:all; transition:all .35s; font-family:inherit; }
+  .sb:hover { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.5); color:#fff; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="htop">
+    <div class="hcol">
+      <span class="lbl">Drive Mode</span>
+      <div class="val">Comfort <div class="bb"><div class="bf" id="bfill" style="width:85%"></div></div><span id="bkm">466 km</span></div>
+    </div>
+    <div class="hcol r">
+      <span class="lbl">Weather</span>
+      <div class="val">⛅ 17°C</div>
+    </div>
+  </div>
+  <div class="hleft">
+    <span class="lbl">↱ Navigating</span>
+    <div class="nkm" id="nkm">5.2 km</div>
+    <div class="nst">To Santa Monica St.</div>
+  </div>
+<div class="hright" style="pointer-events:all;">
+  <span class="lbl">Now Playing</span>
+  <div class="mn" id="trackName">No Track</div>
+  <div class="ma" id="trackArtist">—</div>
+  <div style="display:flex;gap:10px;margin-top:8px;align-items:center;">
+    <button onclick="prevTrack()" style="background:none;border:none;color:white;font-size:16px;cursor:pointer;opacity:0.7;">⏮</button>
+    <button id="playBtn" onclick="togglePlay()" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;">▶</button>
+    <button onclick="nextTrack()" style="background:none;border:none;color:white;font-size:16px;cursor:pointer;opacity:0.7;">⏭</button>
+  </div>
+  <div style="width:140px;height:3px;background:rgba(255,255,255,.15);border-radius:2px;margin-top:6px;">
+    <div id="progressBar" style="height:100%;width:0%;background:#00e676;border-radius:2px;transition:width 0.5s linear;"></div>
+  </div>
+    <div style="display:flex;align-items:center;gap:7px;margin-top:8px;">
+    <span id="volIcon" style="font-size:13px;">🔈</span>
+    <input type="range" min="0" max="100" value="18" oninput="setVolume(this.value)"
+      style="width:100px;height:3px;accent-color:#00e676;cursor:pointer;opacity:0.75;">
+  </div>
+</div>
+  <div class="hspd">
+    <div class="sn" id="spn">0</div>
+    <div class="su">KMH</div>
+  </div>
+  <div class="alert" id="alrt"></div>
+  <div class="hbot">
+    <div class="odo" id="odo">ODO  000000 km</div>
+    <div class="ldots"><div class="ld" id="d0"></div><div class="ld on" id="d1"></div><div class="ld" id="d2"></div></div>
+    <div class="hints">
+      <div class="hint"><span class="k">W</span> Accel</div>
+      <div class="hint"><span class="k">S</span> Brake</div>
+      <div class="hint"><span class="k">A</span><span class="k">D</span> Lane</div>
+      <div class="hint"><span class="k">E</span> Cruise</div> <!-- ← add this -->
+    </div>
+  </div>
+</div>
+
+<div id="splash">
+  <div class="se">Infinite Drive</div>
+  <div class="st">The open road<br>awaits.</div>
+  <div class="ss">A meditative driving experience</div>
+  <button class="sb" id="startBtn">Begin Journey</button>
+</div>
+
+<script>
+// ── Renderer ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.25;
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ── Scene ─────────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x01030a);
+scene.fog = new THREE.FogExp2(0x01030a, 0.0055);
+
+// ── Camera ────────────────────────────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 600);
+camera.position.set(0, 3.4, 9.5);
+
+// ── Lighting ──────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x1a2a40, 6));
+const moonLight = new THREE.DirectionalLight(0x88aadd, 2.2);
+moonLight.position.set(-20, 40, -60);
+scene.add(moonLight);
+const fillLight = new THREE.DirectionalLight(0x334466, 1.1);
+fillLight.position.set(10, 5, 5);
+scene.add(fillLight);
+const keyLight = new THREE.DirectionalLight(0xaabbcc, 1.4);
+keyLight.position.set(0, 20, -5);
+scene.add(keyLight);
+
+const tailGlow = new THREE.PointLight(0xff1800, 3.5, 14);
+tailGlow.position.set(0, 0.9, 0.1);
+
+// ── Day/Night Cycle State ─────────────────────────────────────────────────────
+// timeOfDay: 0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset, 1=midnight
+let timeOfDay = 0.18; // Start just before dawn
+const DAY_CYCLE_SPEED = 0.0018; // Full cycle in ~9 minutes of driving
+
+// Sky palette at key times (0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset, 1=midnight)
+const SKY_STOPS = [
+  // [time, top, mid, horizon]
+  [0.00, [0,0,4],       [1,3,18],    [8,12,40]],     // midnight
+  [0.20, [2,2,10],      [8,12,35],   [22,18,60]],     // pre-dawn
+  [0.25, [10,8,40],     [80,40,60],  [255,100,30]],   // sunrise
+  [0.32, [20,40,100],   [80,100,160],[220,160,80]],   // golden hour
+  [0.42, [50,110,200],  [100,155,220],[185,215,240]], // morning
+  [0.50, [30,80,180],   [80,140,220],[160,210,255]],  // noon
+  [0.58, [30,80,180],   [80,140,215],[170,210,250]],  // afternoon
+  [0.68, [20,50,150],   [100,120,180],[230,180,100]], // late afternoon
+  [0.75, [15,20,80],    [90,50,70],  [255,80,20]],    // sunset
+  [0.82, [5,8,30],      [20,15,50],  [60,30,20]],     // dusk
+  [0.90, [0,1,8],       [2,5,20],    [10,10,35]],     // twilight
+  [1.00, [0,0,4],       [1,3,18],    [8,12,40]],      // midnight
+];
+
+function lerpColor(a, b, t) {
+  return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t];
+}
+function toHex(rgb) {
+  return (Math.round(rgb[0])<<16)|(Math.round(rgb[1])<<8)|Math.round(rgb[2]);
+}
+function toCSS(rgb) {
+  return `rgb(${Math.round(rgb[0])},${Math.round(rgb[1])},${Math.round(rgb[2])})`;
+}
+function getSkyColors(t) {
+  t = t % 1;
+  let s0 = SKY_STOPS[SKY_STOPS.length-2], s1 = SKY_STOPS[SKY_STOPS.length-1];
+  for (let i=0; i<SKY_STOPS.length-1; i++) {
+    if (t >= SKY_STOPS[i][0] && t < SKY_STOPS[i+1][0]) { s0=SKY_STOPS[i]; s1=SKY_STOPS[i+1]; break; }
+  }
+  const f = (t - s0[0]) / (s1[0] - s0[0]);
+  return { top: lerpColor(s0[1],s1[1],f), mid: lerpColor(s0[2],s1[2],f), hor: lerpColor(s0[3],s1[3],f) };
+}
+
+// ── Dynamic Sky ───────────────────────────────────────────────────────────────
+const skyC = document.createElement('canvas');
+skyC.width = 2; skyC.height = 512;
+const skyCtx = skyC.getContext('2d');
+const skyTex = new THREE.CanvasTexture(skyC);
+const skyMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(400, 16, 8),
+  new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide })
+);
+scene.add(skyMesh);
+
+function updateSky(t) {
+  const c = getSkyColors(t);
+  const sg2 = skyCtx.createLinearGradient(0, 0, 0, 512);
+  sg2.addColorStop(0,    toCSS(c.top));
+  sg2.addColorStop(0.5,  toCSS(c.mid));
+  sg2.addColorStop(0.85, toCSS(c.hor));
+  sg2.addColorStop(1,    toCSS(c.hor));
+  skyCtx.fillStyle = sg2; skyCtx.fillRect(0, 0, 2, 512);
+  skyTex.needsUpdate = true;
+  // Update scene background & fog
+  const bgCol = lerpColor(c.top, c.mid, 0.3);
+  scene.background = new THREE.Color(toHex(bgCol));
+  scene.fog.color = new THREE.Color(toHex(lerpColor(c.mid, c.hor, 0.5)));
+}
+
+// ── Sun ───────────────────────────────────────────────────────────────────────
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(14, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xfffde0 })
+);
+scene.add(sunMesh);
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xffcc44, transparent: true, opacity: 0.22, depthWrite: false }));
+sunGlow.scale.set(130, 130, 1);
+scene.add(sunGlow);
+const sunHorizonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xff6600, transparent: true, opacity: 0, depthWrite: false }));
+sunHorizonGlow.scale.set(500, 80, 1);
+sunHorizonGlow.position.set(0, 2, -280);
+scene.add(sunHorizonGlow);
+
+// ── Moon ──────────────────────────────────────────────────────────────────────
+const moonMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(12, 32, 32),
+  new THREE.MeshStandardMaterial({ color: 0xc8d8f8, emissive: 0x223366, emissiveIntensity: 0.35, roughness: 0.88 })
+);
+scene.add(moonMesh);
+const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x4466bb, transparent: true, opacity: 0.14, depthWrite: false }));
+moonGlow.scale.set(70, 70, 1);
+scene.add(moonGlow);
+
+// ── Stars ─────────────────────────────────────────────────────────────────────
+const sGeo = new THREE.BufferGeometry();
+const sPos = new Float32Array(2400);
+for (let i = 0; i < 2400; i += 3) {
+  sPos[i]   = (Math.random()-0.5)*600;
+  sPos[i+1] = Math.random()*120+15;
+  sPos[i+2] = -Math.random()*500-10;
+}
+sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.88 });
+const starField = new THREE.Points(sGeo, starMat);
+scene.add(starField);
+
+// ── Horizon glow sprite ───────────────────────────────────────────────────────
+const hg = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xff7711, transparent: true, opacity: 0.0, depthWrite: false }));
+hg.scale.set(420, 55, 1); hg.position.set(0, 2, -280);
+scene.add(hg);
+
+// Sun/Moon orbit function
+function updateCelestials(t) {
+  // Sun: rises at t=0.25, peaks at t=0.5, sets at t=0.75
+  const sunAngle = (t - 0.25) * Math.PI * 2;
+  const sunR = 180;
+  const sunY = Math.sin((t - 0.25) * Math.PI * 2) * sunR;
+  const sunX = -Math.cos((t - 0.25) * Math.PI * 2) * 80;
+  sunMesh.position.set(sunX, sunY, -280);
+  sunGlow.position.copy(sunMesh.position);
+
+  const isDay = t > 0.22 && t < 0.78;
+  const nearHorizon = Math.abs(sunY) < 30;
+  const sunVisible = isDay;
+  sunMesh.visible = sunVisible;
+  sunGlow.visible = sunVisible;
+
+  // Sun color changes at horizon
+  const horizonFactor = Math.max(0, 1 - Math.abs(sunY) / 35);
+  if (sunVisible) {
+    const sc = lerpColor([255,253,224], [255,80,0], horizonFactor);
+    sunMesh.material.color.setRGB(sc[0]/255, sc[1]/255, sc[2]/255);
+    sunGlow.material.color.setRGB(
+      lerpColor([255,200,60],[255,60,0],horizonFactor)[0]/255,
+      lerpColor([255,200,60],[255,60,0],horizonFactor)[1]/255,
+      lerpColor([255,200,60],[255,60,0],horizonFactor)[2]/255
+    );
+    sunGlow.material.opacity = 0.18 + horizonFactor * 0.45;
+    sunGlow.scale.set(130 + horizonFactor*200, 130 + horizonFactor*80, 1);
+  }
+
+  // Horizon sunrise/sunset glow
+  const hgIntensity = nearHorizon && sunVisible ? horizonFactor * 0.55 : 0;
+  const isRise = t < 0.5;
+  hg.material.color.setHex(isRise ? 0xff5500 : 0xff3300);
+  hg.material.opacity = hgIntensity;
+  sunHorizonGlow.material.opacity = hgIntensity * 0.7;
+
+  // Moon: opposite the sun
+  const moonAngle = sunAngle + Math.PI;
+  moonMesh.position.set(-sunX, Math.sin(moonAngle)*sunR, -280);
+  moonGlow.position.copy(moonMesh.position);
+  const isNight = t < 0.22 || t > 0.78;
+  moonMesh.visible = isNight || moonMesh.position.y > 0;
+  moonGlow.visible = moonMesh.visible;
+
+  // Stars: visible at night, fade at dawn/dusk
+  const starOpacity = t < 0.22 ? 0.88 :
+                      t < 0.30 ? 0.88 * (1-(t-0.22)/0.08) :
+                      t > 0.78 ? 0.88 * ((t-0.78)/0.08) :
+                      t > 0.70 ? 0.88 * (1-(0.78-t)/0.08) : 0;
+  starMat.opacity = Math.max(0, Math.min(0.88, starOpacity));
+}
+
+// ── Dynamic Lighting ──────────────────────────────────────────────────────────
+function updateLighting(t) {
+  const c = getSkyColors(t);
+  // Ambient: very dark at night, bright at noon
+  const isDay = t > 0.22 && t < 0.78;
+  const noon = Math.max(0, Math.sin((t-0.25)*Math.PI*2));
+  const ambIntensity = isDay ? 2 + noon * 8 : 0.8;
+  const ambColor = isDay ? lerpColor([30,60,80],[20,50,100], noon) : [10,15,40];
+  scene.children.forEach(c => {
+    if (c instanceof THREE.AmbientLight) {
+      c.intensity = ambIntensity;
+      c.color.setRGB(ambColor[0]/255, ambColor[1]/255, ambColor[2]/255);
+    }
+  });
+  // Moon light intensity at night
+  moonLight.intensity = (!isDay) ? 1.8 : 0.0;
+  // Sun key light
+  keyLight.intensity = isDay ? noon * 3.5 : 0;
+  const horizonFactor = Math.abs(Math.sin((t-0.25)*Math.PI*2)) < 0.2 ? 1 - Math.abs(Math.sin((t-0.25)*Math.PI*2))/0.2 : 0;
+  keyLight.color.setRGB(
+    lerpColor([255,240,200],[255,120,40],horizonFactor)[0]/255,
+    lerpColor([255,240,200],[255,120,40],horizonFactor)[1]/255,
+    lerpColor([255,240,200],[255,120,40],horizonFactor)[2]/255
+  );
+  // Road color (updated later once road is declared)
+  const roadBrightness = isDay ? 0.03 + noon*0.04 : 0.01;
+  if (typeof road !== 'undefined') road.material.color.setRGB(roadBrightness, roadBrightness, roadBrightness*1.2);
+  // Fog density
+  scene.fog.density = isDay ? 0.004 + noon*0.001 : 0.006;
+}
+
+// ── Scenery ───────────────────────────────────────────────────────────────────
+const RL_CONST = 600; // Road length constant used for scenery
+const sceneryGroup = new THREE.Group();
+scene.add(sceneryGroup);
+
+// Mountain range (far background)
+const mtMat = new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 1, metalness: 0 });
+const mtMatDay = new THREE.MeshStandardMaterial({ color: 0x4a5060, roughness: 1, metalness: 0 });
+for (let i = 0; i < 22; i++) {
+  const h = 20 + Math.random() * 40;
+  const w = 18 + Math.random() * 30;
+  const geo = new THREE.ConeGeometry(w, h, 5 + Math.floor(Math.random()*3));
+  const m = new THREE.Mesh(geo, mtMat.clone());
+  const side = Math.random() > 0.5 ? 1 : -1;
+  m.position.set(side*(80+Math.random()*120), h*0.4-2, -(200 + Math.random()*200));
+  m.rotation.y = Math.random()*0.5;
+  sceneryGroup.add(m);
+}
+
+// Pine trees on roadside
+function makePineTree(x, z, scale) {
+  const g = new THREE.Group();
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 1 });
+  const leafMat  = new THREE.MeshStandardMaterial({ color: 0x0d2a12, roughness: 0.9 });
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08*scale, 0.12*scale, 0.9*scale, 8), trunkMat);
+  trunk.position.y = 0.45*scale;
+  const t1 = new THREE.Mesh(new THREE.ConeGeometry(0.6*scale, 1.4*scale, 7), leafMat);
+  t1.position.y = 1.6*scale;
+  const t2 = new THREE.Mesh(new THREE.ConeGeometry(0.42*scale, 1.1*scale, 7), leafMat.clone());
+  t2.position.y = 2.3*scale;
+  const t3 = new THREE.Mesh(new THREE.ConeGeometry(0.26*scale, 0.9*scale, 7), leafMat.clone());
+  t3.position.y = 2.9*scale;
+  g.add(trunk, t1, t2, t3);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+// Two bands of trees along road
+const treeInstances = [];
+for (let i = 0; i < 80; i++) {
+  const z = -(i * 7.5 + Math.random() * 5);
+  const side = i % 2 === 0 ? 1 : -1;
+  const xOff = 12 + Math.random() * 14;
+  const sc = 0.7 + Math.random() * 0.8;
+  const tree = makePineTree(side * xOff, z, sc);
+  sceneryGroup.add(tree);
+  treeInstances.push({ mesh: tree, baseZ: z });
+}
+
+// Distant hills / rolling terrain
+const hillMat = new THREE.MeshStandardMaterial({ color: 0x111820, roughness: 1 });
+for (let i = 0; i < 12; i++) {
+  const h = 8 + Math.random() * 14;
+  const geo = new THREE.SphereGeometry(25 + Math.random()*20, 12, 8);
+  const m = new THREE.Mesh(geo, hillMat.clone());
+  const side = Math.random() > 0.5 ? 1 : -1;
+  m.position.set(side*(40+Math.random()*60), h*0.3-2, -(100+Math.random()*300));
+  m.scale.set(1, 0.35, 1.2);
+  sceneryGroup.add(m);
+}
+
+// City skyline silhouette (far right side)
+const buildingMat = new THREE.MeshStandardMaterial({ color: 0x080c14, roughness: 1 });
+const buildingLitMat = new THREE.MeshBasicMaterial({ color: 0xffdd88, transparent: true, opacity: 0.0 });
+const buildingMeshes = [];
+for (let i = 0; i < 18; i++) {
+  const bw = 4 + Math.random()*6;
+  const bh = 15 + Math.random()*45;
+  const geo = new THREE.BoxGeometry(bw, bh, 3);
+  const m = new THREE.Mesh(geo, buildingMat.clone());
+  m.position.set(120 + (i%9)*8 + Math.random()*4, bh/2, -200 - i*12);
+  sceneryGroup.add(m);
+  buildingMeshes.push(m);
+  // Window lights
+  const wGeo = new THREE.BoxGeometry(bw*0.9, bh*0.9, 0.1);
+  const wMat = buildingLitMat.clone();
+  const wm = new THREE.Mesh(wGeo, wMat);
+  wm.position.set(m.position.x, m.position.y, m.position.z+1.6);
+  sceneryGroup.add(wm);
+  buildingMeshes.push({ windowMesh: wm, mat: wMat });
+}
+
+// Ground plane extensions (fields beside road)
+const fieldMat = new THREE.MeshStandardMaterial({ color: 0x060d0a, roughness: 1 });
+const fieldMeshes = [];
+[-1, 1].forEach(side => {
+  const fg = new THREE.Mesh(new THREE.PlaneGeometry(120, RL_CONST), fieldMat.clone());
+  fg.rotation.x = -Math.PI/2;
+  fg.position.set(side * 69, -0.02, -RL_CONST/2+10);
+  scene.add(fg);
+  fieldMeshes.push(fg);
+});
+
+// Update scenery colors based on time
+function updateScenery(t) {
+  const isDay = t > 0.22 && t < 0.78;
+  const noon = Math.max(0, Math.sin((t-0.25)*Math.PI*2));
+  const isNight = t < 0.20 || t > 0.80;
+  const twilight = (t > 0.68 && t < 0.82) || (t > 0.18 && t < 0.32);
+  const horizonT = twilight ? 1 : 0;
+
+  // Mountains
+  sceneryGroup.children.forEach(child => {
+    if (child instanceof THREE.Mesh && child.material && child.material.roughness === 1) {
+      if (child.geometry.type === 'ConeGeometry') {
+        // Pine trees handled separately
+      } else if (child.geometry.type === 'ConeGeometry' || child.geometry.type === 'SphereGeometry' || child.geometry.type === 'BoxGeometry') {
+        // hills and buildings - handled via direct ref
+      }
+    }
+  });
+
+  // Mountain colour
+  const mtC = isDay ? lerpColor([50,60,75],[30,40,55],noon) : lerpColor([8,12,18],[5,8,14],0.5);
+  sceneryGroup.children.forEach(c => {
+    if (c instanceof THREE.Mesh && c.geometry && c.geometry.type === 'ConeGeometry' && c.geometry.parameters && c.geometry.parameters.radialSegments >= 5 && c.geometry.parameters.radialSegments <= 8) {
+      c.material.color.setRGB(mtC[0]/255, mtC[1]/255, mtC[2]/255);
+    }
+  });
+
+  // Field/ground color
+  const fieldC = isDay ? lerpColor([8,22,10],[20,40,15],noon) : [4,8,5];
+  fieldMeshes.forEach(f => f.material.color.setRGB(fieldC[0]/255, fieldC[1]/255, fieldC[2]/255));
+
+  // City window lights (only at night/dusk)
+  buildingMeshes.forEach(b => {
+    if (b.mat) {
+      b.mat.opacity = isNight ? 0.6 + Math.sin(Date.now()*0.0005)*0.1 : twilight ? (t>0.68?(t-0.68)/0.12*0.6:(0.32-t)/0.12*0.6) : 0;
+    }
+  });
+
+  // Trees - slight colour shift
+  const leafC = isDay ? lerpColor([12,40,15],[20,60,20],noon) : [5,14,6];
+  sceneryGroup.children.forEach(c => {
+    if (c instanceof THREE.Group) {
+      c.children.forEach(cc => {
+        if (cc instanceof THREE.Mesh && cc.geometry && cc.geometry.type === 'ConeGeometry') {
+          cc.material.color.setRGB(leafC[0]/255, leafC[1]/255, leafC[2]/255);
+        }
+      });
+    }
+  });
+}
+
+// ── Road ─────────────────────────────────────────────────────────────────────
+const RW = 18, RL = 600;
+const road = new THREE.Mesh(
+  new THREE.PlaneGeometry(RW, RL),
+  new THREE.MeshStandardMaterial({ color: 0x030810, roughness: 0.95,
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 })
+);
+road.rotation.x = -Math.PI/2;
+road.position.set(0, 0, -RL/2+10);
+scene.add(road);
+
+[-RW/2, RW/2].forEach(x => {
+  const e = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, RL), new THREE.MeshBasicMaterial({ color: 0x0055cc }));
+  e.position.set(x, 0.03, -RL/2+10);
+  scene.add(e);
+});
+
+const LANE_DIV_X = [-3, 3];
+const markers = [];
+const mkG = new THREE.BoxGeometry(0.12, 0.03, 3.5);
+const mkM = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+for (let i = 0; i < 60; i++) {
+  LANE_DIV_X.forEach(lx => {
+    const m = new THREE.Mesh(mkG, mkM);
+    m.position.set(lx, 0.03, -(i * 9 + Math.random() * 4));
+    scene.add(m); markers.push(m);
+  });
+}
+
+// ── Arc gauge ─────────────────────────────────────────────────────────────────
+const arcGroup = new THREE.Group();
+const ARC_SEGS = 44;
+const arcMats = [];
+for (let i = 0; i < ARC_SEGS; i++) {
+  const t = i / ARC_SEGS;
+  const a = Math.PI + t * Math.PI;
+  const r = 52;
+  const m = new THREE.MeshBasicMaterial({
+    color: new THREE.Color().setHSL(0.6 - t * 0.08, 1, 0.35 + t * 0.35),
+    transparent: true, opacity: 0.08
+  });
+  arcMats.push(m);
+  const seg = new THREE.Mesh(new THREE.BoxGeometry(0.55, 9, 0.4), m);
+  seg.position.set(Math.cos(a)*r, Math.sin(a)*r+5, -195);
+  seg.rotation.z = a + Math.PI/2;
+  arcGroup.add(seg);
+}
+scene.add(arcGroup);
+
+// ── Car ───────────────────────────────────────────────────────────────────────
+const carGroup = new THREE.Group();
+
+// ── Materials ──
+// Clean, futuristic gloss white finish
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf2f5f8, metalness: 0.15, roughness: 0.1 });
+// Pitch black panoramic glass
+const glMat = new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 0.95, roughness: 0.0, transparent: true, opacity: 0.85 });
+// Matte dark trim for aero parts
+const aeroMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.9 });
+// Emissive LEDs
+const ledWhite = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const ledRed = new THREE.MeshBasicMaterial({ color: 0xff0811 });
+const ledRedGlow = new THREE.MeshBasicMaterial({ color: 0xff3344 });
+
+const addC = (geo, mat, x, y, z, rx=0, ry=0, rz=0) => {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+  carGroup.add(m); return m;
+};
+
+// ════════════════════════════════════════════════
+//  BODY — Ultra-clean, aerodynamic teardrop shape
+// ════════════════════════════════════════════════
+
+// Main streamlined fuselage
+const mainBody = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), bodyMat);
+mainBody.scale.set(1.35, 0.38, 2.6);
+mainBody.position.set(0, 0.48, 0);
+carGroup.add(mainBody);
+
+// Flared, planted rear haunches for a realistic aggressive stance
+const rHaunch = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), bodyMat);
+rHaunch.scale.set(1.45, 0.32, 0.9);
+rHaunch.position.set(0, 0.48, 1.5);
+carGroup.add(rHaunch);
+
+// Front aero nose (slopes down smoothly to cut through air)
+const fNose = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), bodyMat);
+fNose.scale.set(1.25, 0.22, 0.8);
+fNose.position.set(0, 0.4, -2.1);
+fNose.rotation.x = 0.1;
+carGroup.add(fNose);
+
+// Massive panoramic glass dome (seamless windshield to roof to rear glass)
+const canopy = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), glMat);
+canopy.scale.set(0.98, 0.42, 1.4);
+canopy.position.set(0, 0.85, -0.15);
+carGroup.add(canopy);
+
+// Kammback flat rear end (classic aerodynamic EV cut-off)
+addC(new THREE.BoxGeometry(2.65, 0.65, 0.1), aeroMat, 0, 0.5, 2.45, -0.05);
+
+// ── LIGHTING — Monolithic edge-to-edge bars ──
+
+// Front DRL "Horizon" Light Bar
+addC(new THREE.BoxGeometry(2.35, 0.03, 0.05), ledWhite, 0, 0.52, -2.85);
+addC(new THREE.BoxGeometry(2.35, 0.02, 0.05), new THREE.MeshBasicMaterial({color:0xccddff}), 0, 0.50, -2.85);
+
+// Rear "Blade" Tail Light
+addC(new THREE.BoxGeometry(2.62, 0.04, 0.05), ledRed, 0, 0.72, 2.48);
+addC(new THREE.BoxGeometry(2.62, 0.02, 0.06), ledRedGlow, 0, 0.72, 2.49);
+
+// Flush door handles (very subtle indents)
+[-1.34, 1.34].forEach(x => {
+  addC(new THREE.BoxGeometry(0.02, 0.02, 0.25), aeroMat, x, 0.75, 0);
+  addC(new THREE.BoxGeometry(0.02, 0.02, 0.25), aeroMat, x, 0.75, 0.8);
+});
+
+// Minimalist side cameras replacing standard wing mirrors
+[-1.15, 1.15].forEach(x => {
+  addC(new THREE.BoxGeometry(0.15, 0.05, 0.08), aeroMat, x, 0.82, -0.8);
+});
+
+// ── AERODYNAMICS ──
+// Front lower air dam/splitter
+addC(new THREE.BoxGeometry(2.2, 0.04, 0.2), aeroMat, 0, 0.2, -2.75);
+// Side skirts
+[-1.32, 1.32].forEach(x => addC(new THREE.BoxGeometry(0.04, 0.05, 4.2), aeroMat, x, 0.2, 0));
+// Rear diffuser with aero fins
+addC(new THREE.BoxGeometry(2.4, 0.12, 0.3), aeroMat, 0, 0.22, 2.4);
+for(let i=-4; i<=4; i++) {
+  addC(new THREE.BoxGeometry(0.02, 0.15, 0.35), aeroMat, i*0.25, 0.18, 2.42);
+}
+
+// ══════════════════════════
+//  WHEELS — Solid Aero Discs
+// ══════════════════════════
+const tireMat = new THREE.MeshStandardMaterial({ color: 0x040506, roughness: 0.95 });
+const rimBlack = new THREE.MeshStandardMaterial({ color: 0x080808, metalness: 0.4, roughness: 0.8 });
+const rimSilver = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.1 });
+
+const WPOS=[[-1.3,0.38,1.45],[1.3,0.38,1.45],[-1.3,0.38,-1.45],[1.3,0.38,-1.45]];
+WPOS.forEach(([wx,wy,wz]) => {
+  const wg = new THREE.Group();
+  wg.position.set(wx,wy,wz);
+
+  // Low profile tire
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.26, 48), tireMat);
+  tire.rotation.z = Math.PI/2; wg.add(tire);
+
+  // Solid aerodynamic rim cover
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.265, 48), rimBlack);
+  disc.rotation.z = Math.PI/2; wg.add(disc);
+
+  // Silver aero accent ring
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.03, 16, 48), rimSilver);
+  ring.rotation.y = Math.PI/2; wg.add(ring);
+  
+  // Central flush cap
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.27, 32), rimSilver);
+  cap.rotation.z = Math.PI/2; wg.add(cap);
+
+  carGroup.add(wg);
+});
+
+// ── SHADOWS & LIGHTS ──
+const shadowMat = new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.6, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2});
+const shadowMat2= new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.25, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-1});
+const sh1=new THREE.Mesh(new THREE.PlaneGeometry(2.9, 5.6),shadowMat);
+sh1.rotation.x=-Math.PI/2; sh1.position.set(0,0.018,0); carGroup.add(sh1);
+const sh2=new THREE.Mesh(new THREE.PlaneGeometry(3.4, 6.2),shadowMat2);
+sh2.rotation.x=-Math.PI/2; sh2.position.set(0,0.016,0); carGroup.add(sh2);
+
+carGroup.add(tailGlow);
+// Subtle white/cyan EV underglow
+const underGlow=new THREE.PointLight(0xddffff, 0.8, 6.0);
+underGlow.position.set(0,0.1,0); carGroup.add(underGlow);
+
+// Ground reflection
+const reflMesh=new THREE.Mesh(
+  new THREE.PlaneGeometry(3.4, 6.0),
+  new THREE.MeshStandardMaterial({color:0x0a111a,metalness:0.95,roughness:0.08,transparent:true,opacity:0.4})
+);
+reflMesh.rotation.x=-Math.PI/2; reflMesh.position.set(0,0.014,0); carGroup.add(reflMesh);
+
+scene.add(carGroup);
+
+// ── Speed lines ───────────────────────────────────────────────────────────────
+const speedLines = [];
+for (let i = 0; i < 44; i++) {
+  const bx = (Math.random()-0.5)*32;
+  const by = Math.random()*2.5+0.3;
+  const pts = [new THREE.Vector3(bx, by, -6), new THREE.Vector3(bx, by, -8)];
+  const lg = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 0 })
+  );
+  scene.add(lg);
+  speedLines.push({ mesh: lg, pts, bx, by });
+}
+
+// ── Physics state ─────────────────────────────────────────────────────────────
+let started = false;
+let speed = 0;
+const MAX = 180, ACCEL = 32, BRAKE = 72, DRAG = 8;
+let lane = 1, laneCooldown = 0;
+let cruise = false;
+const LANE_W = RW/3;
+const LANE_POS = [-6, 0, 6];
+
+let posX = 0, velX = 0;
+let camX = 0, lookX = 0;
+let leanZ = 0, yawY = 0;
+
+let odoM = 0;
+let alertT = 0, alertMsg = '', nextAlert = 18;
+const ALERTS = ['Slower Vehicle Ahead — 100m','Surrounding Traffic Too Close','Speed Limit: 100 KMH','Lane Departure Warning','Merging Vehicle Right'];
+
+
+function showAlert(msg) {
+  alertMsg = msg; alertT = 3;
+  document.getElementById('alrt').textContent = msg;
+  document.getElementById('alrt').classList.add('show');
+}
+
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key.toLowerCase() === 'e') { // ← add this block
+    cruise = !cruise;
+    showAlert(cruise ? '⚡ Cruise Control ON' : 'Cruise Control OFF');
+  }
+});
+window.addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
+
+let prevA = false, prevD = false;
+
+// ── Audio ─────────────────────────────────────────────────────────────────────
+
+let audioCtx, windGain, engineGain, audioReady = false;
+
+function initAudio() {
+  if (audioReady) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const master = audioCtx.createGain();
+  master.gain.value = 0.15; // Overall volume
+  master.connect(audioCtx.destination);
+
+  // ── Compressor to glue everything together ──
+  const comp = audioCtx.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.knee.value = 8;
+  comp.ratio.value = 4;
+  comp.attack.value = 0.003;
+  comp.release.value = 0.18;
+  comp.connect(master);
+
+  // ── Sports Car Engine Synthesis ──
+// ── Soothing Luxury Cruiser Synthesis ──
+  const masterEngGain = audioCtx.createGain();
+  masterEngGain.gain.value = 0.0;
+  
+  // Engine filter: heavily muffled for a deep, soothing purr
+  const engFilter = audioCtx.createBiquadFilter();
+  engFilter.type = 'lowpass';
+  engFilter.frequency.value = 120; // Very low baseline to cut out harshness
+  engFilter.Q.value = 0.5; // Low resonance so it doesn't "whine"
+  
+  // Base engine note (Smooth triangle wave)
+  const engOsc1 = audioCtx.createOscillator();
+  engOsc1.type = 'triangle';
+  
+  // Harmonic overtone (Soft sine wave for richness without the rasp)
+  const engOsc2 = audioCtx.createOscillator();
+  engOsc2.type = 'sine';
+  
+  // Deep body exhaust rumble (Pure sine wave for subwoofer bass)
+  const subOsc = audioCtx.createOscillator();
+  subOsc.type = 'sine';
+
+  engOsc1.connect(engFilter);
+  engOsc2.connect(engFilter);
+  subOsc.connect(engFilter);
+  engFilter.connect(masterEngGain);
+  masterEngGain.connect(comp);
+
+  engOsc1.start(); engOsc2.start(); subOsc.start();
+
+  // ── Wind & Tyre Noise (Background layers) ──
+  const bsz = audioCtx.sampleRate * 2;
+  const buf = audioCtx.createBuffer(1, bsz, audioCtx.sampleRate);
+  const tbuf = audioCtx.createBuffer(1, bsz, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  const td = tbuf.getChannelData(0);
+  for (let i = 0; i < bsz; i++) {
+    d[i] = Math.random() * 2 - 1;
+    td[i] = Math.random() * 2 - 1;
+  }
+  
+  // Wind
+  const ns = audioCtx.createBufferSource();
+  ns.buffer = buf; ns.loop = true;
+  const bpf = audioCtx.createBiquadFilter();
+  bpf.type = 'bandpass'; bpf.frequency.value = 900; bpf.Q.value = 0.5;
+  windGain = audioCtx.createGain(); windGain.gain.value = 0;
+  ns.connect(bpf); bpf.connect(windGain); windGain.connect(comp);
+  ns.start();
+
+  // Tyre Roar
+  const tns = audioCtx.createBufferSource();
+  tns.buffer = tbuf; tns.loop = true;
+  const tlpf = audioCtx.createBiquadFilter();
+  tlpf.type = 'lowpass'; tlpf.frequency.value = 180;
+  const tyreGain = audioCtx.createGain(); tyreGain.gain.value = 0;
+  tns.connect(tlpf); tlpf.connect(tyreGain); tyreGain.connect(comp);
+  tns.start();
+
+  // Store references for the animation loop
+  engineGain = {
+    engOsc1, engOsc2, subOsc, engFilter, masterEngGain, tyre: tyreGain
+  };
+
+  audioReady = true;
+}
+document.getElementById('startBtn').addEventListener('click', () => {
+  initAudio();
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  document.getElementById('splash').classList.add('out');
+  setTimeout(()=>{
+    document.getElementById('splash').style.display='none';
+    document.getElementById('hud').classList.add('visible');
+    started=true;
+      audio.play().then(() => {
+        isPlaying = true;
+        document.getElementById('playBtn').textContent = '⏸';
+      }).catch(() => {});
+  }, 1400);
+});
+
+// Initial sky render
+updateSky(timeOfDay);
+updateCelestials(timeOfDay);
+updateLighting(timeOfDay);
+updateScenery(timeOfDay);
+// ── Main loop ─────────────────────────────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const sr = speed / MAX;
+
+  if (started) {
+    if (keys['w'] || cruise) speed = Math.min(MAX, speed + ACCEL*dt);
+    else if (keys['s']) { speed = Math.max(0, speed - BRAKE*dt); cruise = false; }
+    else speed = Math.max(0, speed - DRAG*dt);
+
+    if (laneCooldown > 0) laneCooldown -= dt;
+
+    if (keys['a'] && !prevA && lane > 0 && laneCooldown <= 0) { lane--; laneCooldown = 0.6; }
+    if (keys['d'] && !prevD && lane < 2 && laneCooldown <= 0) { lane++; laneCooldown = 0.6; }
+    prevA = !!keys['a'];
+    prevD = !!keys['d'];
+
+    const targetX = LANE_POS[lane];
+    const diffX   = targetX - posX;
+    const K = 12.0, C = 8.0;
+    velX += (diffX * K - velX * C) * dt;
+    velX = Math.max(-6, Math.min(6, velX));
+    posX += velX * dt;
+    posX = Math.max(-7, Math.min(7, posX));
+
+    const leanTgt = -velX * 0.006;
+    leanZ += (leanTgt - leanZ) * 10 * dt;
+    leanZ = Math.max(-0.044, Math.min(0.044, leanZ));
+
+    const yawTgt = velX * 0.012;
+    yawY += (yawTgt - yawY) * 8 * dt;
+    yawY = Math.max(-0.06, Math.min(0.06, yawY));
+
+    carGroup.position.x = posX;
+    carGroup.rotation.z = leanZ;
+    carGroup.rotation.y = yawY;
+
+    carGroup.position.y = Math.sin(Date.now() * 0.018 * (sr+0.1)) * 0.022 * sr;
+
+    camX  += (posX * 0.18 - camX)  * 4.5 * dt;
+    lookX += (posX * 0.12 - lookX) * 4.5 * dt;
+    camera.position.x = camX;
+    camera.position.y = 3.4;
+    camera.position.z = 9.5;
+    camera.lookAt(lookX, 0.8, -8);
+
+    const mz = speed * dt * 0.38;
+    markers.forEach(m => { m.position.z += mz; if(m.position.z > 8) m.position.z -= 280; });
+
+    arcGroup.rotation.z += 0.04*dt*(sr+0.05);
+    arcMats.forEach((m, i) => {
+      const active = i/ARC_SEGS < sr;
+      m.opacity = active ? 0.2 + (i/ARC_SEGS)*0.65 : 0.06;
+    });
+
+    speedLines.forEach(sl => {
+      sl.mesh.material.opacity = sr > 0.28 ? (sr-0.28)*0.95 : 0;
+      sl.pts[0].z -= speed*dt*0.44;
+      sl.pts[1].z  = sl.pts[0].z - 1.5 - sr*5;
+      if (sl.pts[0].z > 4) { sl.pts[0].set(sl.bx, sl.by, -22-Math.random()*14); sl.pts[1].z=sl.pts[0].z-2; }
+      sl.mesh.geometry.setFromPoints(sl.pts);
+      sl.mesh.geometry.attributes.position.needsUpdate=true;
+    });
+
+    tailGlow.intensity = 2.2 + sr * 3.0 + Math.sin(Date.now() * 0.003) * 0.3;
+
+    // ── Day/Night Cycle ──
+    if (speed > 5) timeOfDay = (timeOfDay + DAY_CYCLE_SPEED * dt * (0.3 + sr)) % 1;
+    updateSky(timeOfDay);
+    updateCelestials(timeOfDay);
+    updateLighting(timeOfDay);
+    updateScenery(timeOfDay);
+
+    // ── Scroll trees ──
+    const tz = speed * dt * 0.38;
+    treeInstances.forEach(ti => {
+      ti.mesh.position.z += tz;
+      if (ti.mesh.position.z > 10) ti.mesh.position.z -= 600;
+    });
+
+    nextAlert -= dt;
+    if (nextAlert<=0 && speed>35) {
+      alertMsg=ALERTS[Math.floor(Math.random()*ALERTS.length)];
+      alertT=3; nextAlert=12+Math.random()*10;
+    }
+    if (alertT>0) { alertT-=dt; document.getElementById('alrt').textContent=alertMsg; document.getElementById('alrt').classList.add('show'); }
+    else document.getElementById('alrt').classList.remove('show');
+
+    odoM += (speed/3.6)*dt;
+    const ok = odoM/1000;
+    document.getElementById('spn').textContent=Math.round(speed);
+    document.getElementById('odo').textContent=`ODO  ${String(Math.floor(ok)).padStart(6,'0')} km`;
+    document.getElementById('nkm').textContent=`${Math.max(0,5.2-ok*0.3).toFixed(1)} km`;
+    const bk=Math.max(0,Math.round(466-ok*0.15));
+    document.getElementById('bkm').textContent=`${bk} km`;
+    document.getElementById('bfill').style.width=`${Math.max(2,bk/466*100)}%`;
+    [0,1,2].forEach(i=>document.getElementById(`d${i}`).classList.toggle('on',i===lane));
+
+    // ── Dynamic Audio Updates (Gears, RPM, and Wind) ──
+// ── Dynamic Audio Updates (Smooth & Soothing) ──
+    if (audioReady && engineGain) {
+      const sr = speed / MAX; // Speed ratio from 0.0 to 1.0
+      const t = audioCtx.currentTime;
+
+      // 1. Smooth, continuous RPM (No jarring gear shifts)
+      // Idles at a low purr (600) and maxes out at a relaxed hum (3600)
+      const rpm = 600 + (sr * 3000); 
+
+      // Convert RPM to frequency
+      const freq = (rpm / 60) * 4;
+
+      // 2. Glide the frequencies very slowly for a liquid-smooth transition
+      engineGain.engOsc1.frequency.setTargetAtTime(freq, t, 0.4);
+      engineGain.engOsc2.frequency.setTargetAtTime(freq * 1.5, t, 0.4); 
+      engineGain.subOsc.frequency.setTargetAtTime(freq / 2, t, 0.4);
+
+      // 3. Gentle Engine Throttle & Filter dynamics
+      const isAccelerating = keys['w'] || cruise;
+      
+      // Filter stays mostly closed to muffle the sound. Opens slightly under acceleration.
+      const filterFreq = 120 + (sr * 300) + (isAccelerating ? 150 : 0);
+      engineGain.engFilter.frequency.setTargetAtTime(filterFreq, t, 0.4);
+
+      // Engine volume is kept low and subtle, blending smoothly into the background
+      const throttleVol = isAccelerating ? 0.20 : 0.10;
+      engineGain.masterEngGain.gain.setTargetAtTime(throttleVol + (sr * 0.1), t, 0.4);
+
+      // 4. Soften the environmental sounds (Wind and Tyres)
+      if (windGain) windGain.gain.setTargetAtTime(sr * 0.35, t, 0.5);
+      if (engineGain.tyre) engineGain.tyre.gain.setTargetAtTime(sr * 0.25, t, 0.5);
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+loop();
+
+
+// ── Music Player ──────────────────────────────────────────────────────────────
+const playlist = [
+  { file: 'music/Don Toliver - No Idea.mp3', name: 'No Idea',   artist: 'Don Toliver' },
+  { file: 'music/track2.mp3', name: 'Track Two',   artist: 'Artist Name' },
+  { file: 'music/track3.mp3', name: 'Track Three', artist: 'Artist Name' },
+];
+
+let currentTrack = 1;
+let isPlaying = false;
+const audio = new Audio();
+audio.volume = 0.35; // quiet by default
+
+function loadTrack(index) {
+  const t = playlist[index];
+  audio.src = t.file;
+  document.getElementById('trackName').textContent = t.name;
+  document.getElementById('trackArtist').textContent = t.artist;
+  document.getElementById('progressBar').style.width = '0%';
+}
+
+function togglePlay() {
+  if (isPlaying) {
+    audio.pause();
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶';
+  } else {
+    audio.play().catch(() => {});
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏸';
+  }
+}
+
+function nextTrack() {
+  currentTrack = (currentTrack + 1) % playlist.length;
+  loadTrack(currentTrack);
+  if (isPlaying) audio.play().catch(() => {});
+}
+
+function prevTrack() {
+  currentTrack = (currentTrack - 1 + playlist.length) % playlist.length;
+  loadTrack(currentTrack);
+  if (isPlaying) audio.play().catch(() => {});
+}
+
+function setVolume(val) {
+  audio.volume = val / 100;
+  const icon = document.getElementById('volIcon');
+  if (val == 0)       icon.textContent = '🔇';
+  else if (val < 40)  icon.textContent = '🔈';
+  else if (val < 75)  icon.textContent = '🔉';
+  else                icon.textContent = '🔊';
+}
+
+audio.addEventListener('timeupdate', () => {
+  if (audio.duration) {
+    const pct = (audio.currentTime / audio.duration) * 100;
+    document.getElementById('progressBar').style.width = pct + '%';
+  }
+});
+
+audio.addEventListener('ended', nextTrack);
+loadTrack(0); // load track so src is ready
+</script>
+</body>
+</html>
